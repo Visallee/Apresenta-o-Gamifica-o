@@ -2,20 +2,21 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gamificação no Ensino de Algoritmos: Estudo de Caso e Proposta Beecrowd</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Diagnóstico e Redesenho de Sistema Gamificado — Estudo de Caso Beecrowd</title>
 <style>
   :root {
-    --bg: #0e0c16;
-    --bar: #0a0910;
-    --panel: #16131f;
-    --line: #2b2640;
+    --bg: #121212;
+    --bg-deep: #0b0b0d;
+    --panel: #1b1622;
+    --panel-line: #33283f;
     --purple: #5e219c;
-    --purple-2: #b07bf0;
-    --text: #f4f2f9;
-    --muted: #b8b2c9;
-    --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
-    --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    --purple-light: #b48af0;
+    --purple-dim: #7d4bb0;
+    --text: #f2eef9;
+    --text-muted: #ada2c2;
+    --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, "Liberation Mono", monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
 
   * { box-sizing: border-box; }
@@ -25,496 +26,451 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #060509;
+    background: var(--bg-deep);
     font-family: var(--sans);
     color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
-  /* Palco fixo 1920x1080 (16:9), escalado para caber em qualquer tela */
-  .stage {
+  /* Palco lógico 1920x1080 (16:9), escalado uniformemente para caber em
+     qualquer tela sem nunca gerar barra de rolagem. */
+  #stage {
     position: absolute;
     left: 50%;
     top: 50%;
     width: 1920px;
     height: 1080px;
     transform-origin: center center;
-    transform: translate(-50%, -50%);
     background: var(--bg);
     overflow: hidden;
+    cursor: pointer;
   }
-
-  /* ---------- Barra superior (abas de editor) ---------- */
-  .topbar {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 56px;
-    display: flex;
-    align-items: stretch;
-    background: var(--bar);
-    border-bottom: 1px solid var(--line);
-    z-index: 5;
-  }
-  .dots { display: flex; align-items: center; gap: 10px; padding: 0 28px; }
-  .dots i { width: 14px; height: 14px; border-radius: 50%; background: #3a3354; display: block; }
-  .tab {
-    display: flex;
-    align-items: center;
-    padding: 0 32px;
-    font-family: var(--mono);
-    font-size: 22px;
-    color: var(--text);
-    background: var(--bg);
-    border-top: 3px solid var(--purple-2);
-    border-right: 1px solid var(--line);
-    border-left: 1px solid var(--line);
-  }
-  .ticks { margin-left: auto; display: flex; align-items: center; gap: 6px; padding-right: 28px; }
-  .tick {
-    width: 34px; height: 24px; padding: 0; border: 0; background: transparent; cursor: pointer;
-    display: flex; align-items: center;
-  }
-  .tick::before { content: ""; display: block; width: 100%; height: 6px; border-radius: 3px; background: var(--line); }
-  .tick.on::before { background: var(--purple-2); }
-  .tick:hover::before { background: var(--purple); }
-  .tick.on:hover::before { background: var(--purple-2); }
-
-  /* ---------- Barra de status (número da página) ---------- */
-  .statusbar {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 40px;
-    background: var(--purple);
-    border-top: 1px solid rgba(255, 255, 255, .18);
-    color: #fff;
-    font-family: var(--mono);
-    font-size: 24px;
-    z-index: 5;
-  }
-  .statusbar .left { display: flex; gap: 44px; }
-  .statusbar .page { font-size: 28px; font-weight: 700; letter-spacing: .02em; }
-  .statusbar.no-page .page { visibility: hidden; }
-
-  /* ---------- Slides ---------- */
-  .slides { position: absolute; top: 56px; bottom: 52px; left: 0; right: 0; }
 
   .slide {
     position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
-    padding: 48px 130px 32px;
-    overflow: hidden;
+    justify-content: center;
+    padding: 0 190px;
     opacity: 0;
     visibility: hidden;
-    transform: translateX(48px);
-    transition: opacity .4s ease, transform .4s ease, visibility 0s linear .4s;
+    transform: translateY(18px);
+    transition: opacity .35s ease, transform .35s ease, visibility 0s linear .35s;
   }
-  .slide.before { transform: translateX(-48px); }
   .slide.active {
     opacity: 1;
     visibility: visible;
     transform: none;
-    transition: opacity .4s ease, transform .4s ease, visibility 0s;
+    transition: opacity .35s ease, transform .35s ease, visibility 0s;
   }
 
-  .title {
-    margin: 0 0 34px;
-    font-size: 56px;
-    line-height: 1.12;
+  /* ---------- Cromagem estrutural: número da seção e paginação ---------- */
+  .tag {
+    position: absolute;
+    top: 56px;
+    left: 190px;
+    font-family: var(--mono);
+    font-size: 24px;
+    letter-spacing: .04em;
+    color: var(--purple-light);
+  }
+  .tag b { color: var(--text); font-weight: 600; }
+
+  .page-num {
+    position: absolute;
+    bottom: 48px;
+    right: 64px;
+    font-family: var(--mono);
+    font-size: 24px;
+    color: var(--text-muted);
+    letter-spacing: .03em;
+  }
+  .page-num .cur { color: var(--purple-light); font-weight: 700; }
+
+  /* barra de progresso vertical fina, à esquerda do palco */
+  .rail {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: var(--panel-line);
+    z-index: 3;
+  }
+  .rail .fill {
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: var(--purple);
+    transition: height .35s ease;
+  }
+
+  h1.title, h2.title {
+    margin: 0 0 40px;
+    font-size: clamp(44px, 5vw, 66px);
+    line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -.01em;
-    color: #fff;
+    color: var(--text);
+    max-width: 1250px;
+  }
+  h1.title .accent, h2.title .accent { color: var(--purple-light); }
+
+  .rule {
+    width: 96px;
+    height: 4px;
+    background: var(--purple);
+    border-radius: 2px;
+    margin: 0 0 44px;
   }
 
-  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
-
-  .txt { font-size: 34px; line-height: 1.45; color: var(--text); }
-  .txt p { margin: 0 0 24px; }
-  .txt p:last-child { margin-bottom: 0; }
-  .k { color: var(--purple-2); font-weight: 600; }
-
-  .callout {
-    border-left: 8px solid var(--purple);
-    background: var(--panel);
-    padding: 28px 40px;
-    border-radius: 0 12px 12px 0;
+  .body-text {
+    font-size: clamp(28px, 2.4vw, 36px);
+    line-height: 1.55;
+    color: var(--text);
+    max-width: 1180px;
   }
+  .body-text.narrow { max-width: 900px; }
 
-  /* Layout com imagem */
-  .split { display: grid; gap: 64px; align-items: center; }
-  .split.img-right { grid-template-columns: 1fr 680px; }
-  .split.img-left  { grid-template-columns: 680px 1fr; }
+  /* ---------- Layout dividido (texto + imagem) ---------- */
+  .split {
+    display: grid;
+    grid-template-columns: 620px 1fr;
+    gap: 84px;
+    align-items: center;
+  }
+  .split.img-right { grid-template-columns: 1fr 620px; }
+  .split .col-media { order: 0; }
+  .split.img-right .col-media { order: 1; }
 
-  .media { display: flex; align-items: center; justify-content: center; min-width: 0; }
   .frame {
-    max-width: 100%;
-    padding: 10px;
     background: var(--panel);
-    border: 2px solid var(--line);
-    border-radius: 14px;
+    border: 1px solid var(--panel-line);
+    border-radius: 10px;
+    padding: 14px;
   }
   .frame img {
     display: block;
-    max-width: 100%;
-    max-height: 640px;
-    width: auto;
+    width: 100%;
     height: auto;
+    max-height: 520px;
     object-fit: contain;
-    border-radius: 8px;
+    border-radius: 6px;
   }
   .frame .ph {
     display: none;
-    width: 640px; height: 400px;
-    align-items: center; justify-content: center; text-align: center;
-    padding: 32px;
-    font-family: var(--mono); font-size: 24px; line-height: 1.4; color: var(--muted);
+    height: 340px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--text-muted);
   }
   .frame.missing img { display: none; }
   .frame.missing .ph { display: flex; }
+  .caption {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--text-muted);
+  }
 
   /* ---------- Capa ---------- */
-  .slide.cover { padding: 0; flex-direction: row; }
-  .cover .main {
-    flex: 1;
-    display: flex; flex-direction: column; justify-content: center;
-    padding: 0 60px 0 150px;
+  .slide.cover { padding: 0 160px; align-items: flex-start; }
+  .cover .eyebrow {
+    font-family: var(--mono);
+    font-size: 24px;
+    color: var(--purple-light);
+    margin-bottom: 28px;
   }
   .cover h1 {
-    margin: 0 0 56px;
-    font-size: 70px;
-    line-height: 1.12;
+    margin: 0 0 18px;
+    font-size: 72px;
+    line-height: 1.1;
     font-weight: 700;
-    letter-spacing: -.015em;
-    color: #fff;
-    text-wrap: balance;
+    color: var(--text);
+    max-width: 1400px;
   }
-  .meta { display: grid; grid-template-columns: 330px 1fr; row-gap: 22px; column-gap: 24px; font-size: 32px; line-height: 1.3; }
-  .meta dt { color: var(--muted); }
-  .meta dd { margin: 0; color: #fff; font-weight: 600; }
+  .cover .subtitle {
+    font-size: 36px;
+    color: var(--purple-light);
+    margin: 0 0 56px;
+    font-weight: 400;
+  }
+  .cover .meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    row-gap: 14px;
+    column-gap: 28px;
+    font-size: 26px;
+    color: var(--text-muted);
+    margin-bottom: 48px;
+  }
+  .cover .meta b { color: var(--text); font-weight: 600; }
   .cover .team {
-    width: 700px;
-    background: var(--purple);
-    padding: 0 110px 0 70px;
-    display: flex; flex-direction: column; justify-content: center;
+    border-top: 1px solid var(--panel-line);
+    padding-top: 32px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 40px;
   }
-  .team h2 { margin: 0 0 36px; font-size: 40px; font-weight: 700; color: #fff; }
-  .team ul { list-style: none; margin: 0; padding: 0; }
-  .team li { font-size: 33px; line-height: 1.3; color: #fff; padding: 22px 0; border-top: 1px solid rgba(255, 255, 255, .28); }
-  .team li:last-child { border-bottom: 1px solid rgba(255, 255, 255, .28); }
+  .cover .team span {
+    font-size: 24px;
+    color: var(--text);
+  }
+  .cover .team .label {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--text-muted);
+    width: 100%;
+    margin-bottom: 4px;
+  }
 
   /* ---------- Sumário ---------- */
   .toc {
-    list-style: none; margin: 0; padding: 0;
-    height: 100%;
+    list-style: none;
+    margin: 0; padding: 0;
     display: grid;
-    grid-template-rows: repeat(5, 1fr);
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    column-gap: 72px;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 90px;
+    row-gap: 6px;
   }
   .toc li {
-    display: flex; align-items: center; gap: 28px;
-    border-top: 1px solid var(--line);
-    font-size: 38px; line-height: 1.25; color: var(--text);
+    display: flex;
+    align-items: baseline;
+    gap: 26px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--panel-line);
+    font-size: 32px;
   }
   .toc .n {
+    font-family: var(--mono);
+    color: var(--purple-light);
+    font-size: 28px;
+    width: 46px;
     flex: none;
-    width: 68px; height: 68px;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--purple);
-    border-radius: 10px;
-    font-family: var(--mono); font-size: 34px; font-weight: 700; color: #fff;
   }
 
-  /* ---------- Slide 3 e 10 ---------- */
-  .wide { max-width: 1420px; font-size: 38px; line-height: 1.5; }
-  .wide p { margin: 0 0 28px; }
-  .wide .callout { margin-top: 8px; }
-  .wide .callout p { margin: 0; }
-
-  /* ---------- Slide 5 ---------- */
-  .lead { margin: 0 0 30px; font-size: 36px; line-height: 1.4; color: var(--muted); max-width: 1500px; }
-  .reason {
-    display: grid; grid-template-columns: 230px 1fr; column-gap: 32px;
-    padding: 26px 0;
-    border-top: 1px solid var(--line);
-    font-size: 34px; line-height: 1.45;
+  /* ---------- Referências ---------- */
+  .refs {
+    list-style: none;
+    margin: 0; padding: 0;
+    font-size: 25px;
+    line-height: 1.5;
+    max-width: 1350px;
   }
-  .reason p { margin: 0; }
-  .tag { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--purple-2); padding-top: 3px; }
-
-  /* ---------- Slide 6 e 7 ---------- */
-  .txt.sm { font-size: 31px; line-height: 1.42; }
-  .txt ul { list-style: none; margin: 0; padding: 0; }
-  .txt li { position: relative; padding-left: 40px; margin: 0 0 18px; }
-  .txt li:last-child { margin-bottom: 0; }
-  .txt li::before {
-    content: ""; position: absolute; left: 4px; top: .58em;
-    width: 16px; height: 16px; background: var(--purple); border-radius: 3px;
+  .refs li {
+    display: flex;
+    gap: 22px;
+    margin-bottom: 22px;
+  }
+  .refs .k {
+    font-family: var(--mono);
+    color: var(--purple-light);
+    flex: none;
   }
 
-  /* ---------- Slide 8 ---------- */
-  .three { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 8px; }
-  .three > div { padding: 4px 44px 4px 44px; border-left: 2px solid var(--line); font-size: 34px; line-height: 1.45; }
-  .three > div:first-child { padding-left: 0; border-left: 0; }
-  .three > div:last-child { padding-right: 0; }
-  .three h3 { margin: 0 0 18px; font-size: 46px; line-height: 1.1; font-weight: 700; color: var(--purple-2); }
-  .three p { margin: 0; }
-
-  /* ---------- Slide 9 ---------- */
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
-  .two .big { font-size: 46px; line-height: 1.4; font-weight: 600; }
-  .two .big p { margin: 0; }
-  .two .txt p { margin: 0 0 28px; }
-
-  /* ---------- Slide 11 ---------- */
-  .refs { list-style: none; margin: 0; padding: 0; font-size: 32px; line-height: 1.45; max-width: 1560px; }
-  .refs li { position: relative; padding-left: 44px; margin-bottom: 30px; }
-  .refs li:last-child { margin-bottom: 0; }
-  .refs li::before { content: ""; position: absolute; left: 4px; top: .55em; width: 16px; height: 16px; background: var(--purple); border-radius: 3px; }
-
-  /* ---------- Setas de navegação ---------- */
-  .nav {
+  /* ---------- Setas de navegação (discretas) ---------- */
+  .nav-arrow {
     position: absolute;
     top: 50%;
-    width: 78px; height: 78px;
-    margin-top: -39px;
-    display: flex; align-items: center; justify-content: center;
-    padding: 0;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, .28);
-    background: rgba(14, 12, 22, .72);
-    cursor: pointer;
-    z-index: 10;
-    transition: background .2s ease, opacity .2s ease;
+    transform: translateY(-50%);
+    font-family: var(--mono);
+    font-size: 40px;
+    color: var(--purple-light);
+    opacity: .32;
+    pointer-events: none;
+    user-select: none;
+    z-index: 4;
   }
-  .nav svg { width: 38px; height: 38px; stroke: #fff; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-  .nav.prev { left: 24px; }
-  .nav.next { right: 24px; }
-  .nav:hover:not(:disabled) { background: var(--purple); }
-  .nav:disabled { opacity: .25; cursor: default; }
-  .nav:focus-visible, .tick:focus-visible { outline: 4px solid var(--purple-2); outline-offset: 3px; }
+  .nav-arrow.left { left: 28px; }
+  .nav-arrow.right { right: 28px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .slide, .slide.active { transition: none; }
+    .slide { transition: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="stage" id="stage">
+<div id="stage">
 
-  <header class="topbar">
-    <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
-    <div class="tab" id="tabName">capa.md</div>
-    <div class="ticks" id="ticks" role="tablist" aria-label="Slides"></div>
-  </header>
+  <div class="rail"><div class="fill" id="railFill"></div></div>
+  <span class="nav-arrow left">&lsaquo;</span>
+  <span class="nav-arrow right">&rsaquo;</span>
 
-  <main class="slides" id="slides">
+  <!-- 1: CAPA -->
+  <section class="slide cover active" data-tag="">
+    <div class="eyebrow">Gamificação — IFS Campus Lagarto</div>
+    <h1>Diagnóstico e Redesenho de<br>Sistema Gamificado</h1>
+    <div class="subtitle">Estudo de Caso Beecrowd</div>
+    <div class="meta">
+      <span>Instituição</span><b>Instituto Federal de Sergipe (IFS) — Campus Lagarto</b>
+      <span>Disciplina</span><b>Gamificação</b>
+      <span>Orientador</span><b>Jean Louis Silva Santos</b>
+    </div>
+    <div class="team">
+      <span class="label">Equipe</span>
+      <span>Lucas Emanuel Dias dos Santos Oliveira</span>
+      <span>Rauan Phelipe Nascimento de Jesus</span>
+      <span>Rony Hélio do Nascimento Lima</span>
+      <span>Victor Silva do Valle</span>
+    </div>
+  </section>
 
-    <!-- Slide 1: Capa -->
-    <section class="slide cover" data-file="capa.md">
-      <div class="main">
-        <h1>Gamificação no Ensino de Algoritmos: Estudo de Caso e Proposta Beecrowd</h1>
-        <dl class="meta">
-          <dt>Instituição</dt><dd>Instituto Federal de Sergipe (IFS)</dd>
-          <dt>Componente Curricular</dt><dd>Gamificação</dd>
-          <dt>Orientador</dt><dd>Prof. Jean Louis</dd>
-        </dl>
+  <!-- 2: SUMÁRIO -->
+  <section class="slide" data-tag="Sumário">
+    <h2 class="title">Sumário</h2>
+    <div class="rule"></div>
+    <ol class="toc">
+      <li><span class="n">01</span>Classificação Conceitual</li>
+      <li><span class="n">02</span>Análise de Motivação</li>
+      <li><span class="n">03</span>Teoria do Fluxo</li>
+      <li><span class="n">04</span>Decomposição MDA</li>
+      <li><span class="n">05</span>Diagnóstico de Riscos</li>
+      <li><span class="n">06</span>Framework de Decisão</li>
+      <li><span class="n">07</span>Proposta de Redesenho</li>
+    </ol>
+  </section>
+
+  <!-- 3: CLASSIFICAÇÃO CONCEITUAL (parte 1, imagem 1) -->
+  <section class="slide" data-tag="01 · Classificação Conceitual">
+    <div class="split img-right">
+      <div class="col-text">
+        <h2 class="title">O Beecrowd como <span class="accent">Gamificação</span></h2>
+        <div class="rule"></div>
+        <p class="body-text">O Beecrowd é uma plataforma de programação competitiva (<em>Online Judge</em>). O usuário escreve soluções algorítmicas e um servidor responde com vereditos como "Accepted" ou "Time Limit Exceeded". Esse núcleo tem a finalidade de verificação técnica, não de entretenimento.</p>
       </div>
-      <aside class="team">
-        <h2>Equipe</h2>
-        <ul>
-          <li>Lucas Emanuel Dias dos Santos Oliveira</li>
-          <li>Rauan Philipe Nascimento de Jesus</li>
-          <li>Rony Hélio do Nascimento Lima</li>
-          <li>Victor Silva do Valle</li>
-        </ul>
-      </aside>
-    </section>
-
-    <!-- Slide 2: Sumário -->
-    <section class="slide" data-file="sumario.md">
-      <h2 class="title">Sumário</h2>
-      <div class="body">
-        <ol class="toc">
-          <li><span class="n">1</span>Introdução e o Desafio do Ensino</li>
-          <li><span class="n">2</span>O Sistema Escolhido: Beecrowd</li>
-          <li><span class="n">3</span>Justificativa Técnica</li>
-          <li><span class="n">4</span>Mecânicas (M)</li>
-          <li><span class="n">5</span>Dinâmicas (D)</li>
-          <li><span class="n">6</span>Estéticas (A)</li>
-          <li><span class="n">7</span>Prevenção de Armadilhas</li>
-          <li><span class="n">8</span>Conclusão</li>
-          <li><span class="n">9</span>Referências</li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- Slide 3: Introdução -->
-    <section class="slide" data-file="introducao.md">
-      <h2 class="title">1. Introdução e o Desafio do Ensino</h2>
-      <div class="body">
-        <div class="wide">
-          <p>O ensino tradicional de lógica e algoritmos frequentemente sofre com a <span class="k">desmotivação</span> dos alunos.</p>
-          <p>Listas de exercícios em PDF são estáticas e não fornecem <span class="k">feedback imediato</span>. O aluno escreve o código, mas não sabe na hora se ele é eficiente ou se atende aos requisitos de tempo.</p>
-          <div class="callout"><p>Nosso objetivo com este trabalho é demonstrar como a gamificação resolve esse problema de engajamento, analisando uma plataforma que já existe e propondo a adoção do seu modelo em nossas aulas no IFS.</p></div>
+      <div class="col-media">
+        <div class="frame">
+          <img src="C:\Users\visal\OneDrive\Desktop\slide para apresentação\images\Tela de Login.png" alt="Tela de login do Beecrowd" onerror="this.closest('.frame').classList.add('missing')">
+          <div class="ph">Imagem não encontrada:<br>Tela de Login.png</div>
         </div>
+        <div class="caption">// Tela de Login.png</div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- Slide 4: Beecrowd + Imagem 1 -->
-    <section class="slide" data-file="beecrowd.md">
-      <h2 class="title">2. O Sistema Escolhido: Beecrowd</h2>
-      <div class="body">
-        <div class="split img-right">
-          <div class="txt">
-            <p>Para esta análise e proposta, escolhemos o Beecrowd.</p>
-            <p>Trata-se de um 'Online Judge', uma plataforma focada em programação competitiva onde o usuário lê problemas lógicos, escreve o código (em linguagens como C++ ou Python) e submete para avaliação automática do servidor.</p>
-            <p>A arquitetura de validação instantânea por trás dessa tela de login é a base perfeita para aplicarmos a Teoria do Fluxo e o framework MDA no ensino.</p>
-          </div>
-          <div class="media">
-            <div class="frame">
-              <img src="images/Tela de Login.png" alt="Tela de login do Beecrowd" onerror="this.closest('.frame').classList.add('missing')">
-              <div class="ph">Imagem não encontrada:<br>Tela de Login.png</div>
-            </div>
-          </div>
+  <!-- 4: GAMIFICAÇÃO VS JOGOS -->
+  <section class="slide" data-tag="01 · Classificação Conceitual">
+    <h2 class="title">A <span class="accent">Camada Lúdica</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Classificamos o Beecrowd como Gamificação, e não como um jogo ou jogo sério. A experiência central continua sendo a escrita de código real. Elementos de jogo, como pontos e rankings, funcionam apenas como um reforço extrínseco em torno dessa atividade técnica, sem recriá-la por completo.</p>
+  </section>
+
+  <!-- 5: MOTIVAÇÃO (parte 1) -->
+  <section class="slide" data-tag="02 · Análise de Motivação">
+    <h2 class="title">A Dinâmica da <span class="accent">Pontuação</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Ao analisar a motivação, observamos a mecânica de pontos baseada na linguagem de programação. Inicialmente, ela atua de forma puramente extrínseca: o usuário resolve um problema novamente apenas pelos pontos. Contudo, essa dinâmica pode evoluir.</p>
+  </section>
+
+  <!-- 6: DESPERTAR INTRÍNSECO -->
+  <section class="slide" data-tag="02 · Análise de Motivação">
+    <h2 class="title">O Despertar <span class="accent">Intrínseco</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Com a repetição, essa busca por pontos pode se transformar no interesse intrínseco por dominar novas sintaxes, satisfazendo a necessidade de competência e autonomia descrita pela Teoria da Autodeterminação. Os pontos deixam de ser a meta e viram apenas um feedback de progresso.</p>
+  </section>
+
+  <!-- 7: TEORIA DO FLUXO (parte 1) -->
+  <section class="slide" data-tag="03 · Teoria do Fluxo">
+    <h2 class="title">O Equilíbrio <span class="accent">Psicológico</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">A Teoria do Fluxo busca a imersão equilibrando desafio e habilidade. No Beecrowd, um iniciante que acessa problemas de Grafos corre risco severo de ansiedade. Um veterano preso a problemas básicos sentirá tédio. Para mitigar isso, o sistema categoriza questões do nível 1 ao 10.</p>
+  </section>
+
+  <!-- 8: LIMITE DO FLUXO -->
+  <section class="slide" data-tag="03 · Teoria do Fluxo">
+    <h2 class="title">A Necessidade de <span class="accent">Autorregulação</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Entretanto, o sistema atual não possui recomendação automática de problemas. A escolha do nível continua sendo manual. Ou seja, a categorização fornece a estrutura, mas o usuário precisa se autorregular constantemente para se manter na Zona de Fluxo, o que é uma limitação real.</p>
+  </section>
+
+  <!-- 9: MDA — RANKINGS (imagem 3) -->
+  <section class="slide" data-tag="04 · Decomposição MDA">
+    <div class="split">
+      <div class="col-media">
+        <div class="frame">
+          <img src="C:\Users\visal\OneDrive\Desktop\slide para apresentação\images\Rank-IFS.png" alt="Ranking do IFS no Beecrowd" onerror="this.closest('.frame').classList.add('missing')">
+          <div class="ph">Imagem não encontrada:<br>Rank-IFS.png</div>
         </div>
+        <div class="caption">// Rank-IFS.png</div>
       </div>
-    </section>
-
-    <!-- Slide 5: Justificativa -->
-    <section class="slide" data-file="justificativa.md">
-      <h2 class="title">3. Justificativa Técnica do Framework</h2>
-      <div class="body">
-        <p class="lead">Segundo os critérios de gamificação estudados em aula, o uso do Beecrowd é justificado por três motivos principais:</p>
-        <div class="reason"><span class="tag">Primeiro</span><p>A programação é um comportamento que exige repetição e se beneficia da criação de hábitos.</p></div>
-        <div class="reason"><span class="tag">Segundo</span><p>Existem métricas de sucesso exatas. O código passa nos testes (Accepted) ou falha (Wrong Answer / Time Limit).</p></div>
-        <div class="reason"><span class="tag">Terceiro</span><p>A plataforma nivela os desafios desde categorias Iniciantes até Extremamente Avançadas, mantendo usuários de diferentes habilidades na sua 'Zona de Fluxo', evitando frustração e tédio.</p></div>
+      <div class="col-text">
+        <h2 class="title">Rankings e <span class="accent">Competição</span></h2>
+        <div class="rule"></div>
+        <p class="body-text narrow">Pelo framework MDA, analisamos o Ranking. O sistema permite filtrar classificações por instituição, país e empresa. A visualização institucional aproxima o aluno de seus pares reais, estimulando fortemente a dinâmica de comparação social e refino de código.</p>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- Slide 6: Mecânicas + Imagem 2 -->
-    <section class="slide" data-file="mecanicas.md">
-      <h2 class="title">4. Mecânicas (M) - Regras e Componentes</h2>
-      <div class="body">
-        <div class="split img-left">
-          <div class="media">
-            <div class="frame">
-              <img src="images/Perfil-top16.png" alt="Perfil de usuário no Beecrowd" onerror="this.closest('.frame').classList.add('missing')">
-              <div class="ph">Imagem não encontrada:<br>Perfil-top16.png</div>
-            </div>
-          </div>
-          <div class="txt sm">
-            <p>Analisando o framework MDA, começamos pelas Mecânicas, que são as regras definidas pelo sistema. O Beecrowd utiliza uma trinca clássica:</p>
-            <ul>
-              <li><span class="k">Pontos (Points):</span> O sistema recompensa o usuário com base na dificuldade de cada problema resolvido.</li>
-              <li><span class="k">Conquistas (Badges):</span> São entregues emblemas por marcos atingidos, como resolver um número 'x' de questões.</li>
-              <li><span class="k">Sequência (Streaks):</span> Um mapa de calor no perfil registra os dias de submissões. O medo de quebrar essa ofensiva visual serve como um forte gatilho extrínseco inicial.</li>
-            </ul>
-          </div>
+  <!-- 10: MDA — ESTÉTICAS (imagem 2) -->
+  <section class="slide" data-tag="04 · Decomposição MDA">
+    <div class="split img-right">
+      <div class="col-text">
+        <h2 class="title">Expressão e <span class="accent">Portfólio</span></h2>
+        <div class="rule"></div>
+        <p class="body-text narrow">A mecânica de Badges, com seus emblemas históricos e temporários, favorece o colecionismo. A principal Estética gerada é a de Expressão: o perfil do usuário se converte em uma vitrine técnica, um portfólio visual consultável tanto por colegas quanto pelo mercado.</p>
+      </div>
+      <div class="col-media">
+        <div class="frame">
+          <img src="C:\Users\visal\OneDrive\Desktop\slide para apresentação\images\Perfil-top16.png" alt="Perfil de usuário no Beecrowd" onerror="this.closest('.frame').classList.add('missing')">
+          <div class="ph">Imagem não encontrada:<br>Perfil-top16.png</div>
         </div>
+        <div class="caption">// Perfil-top16.png</div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- Slide 7: Dinâmicas + Imagem 3 -->
-    <section class="slide" data-file="dinamicas.md">
-      <h2 class="title">5. Dinâmicas (D) - O Comportamento do Usuário</h2>
-      <div class="body">
-        <div class="split img-right">
-          <div class="txt sm">
-            <p>As mecânicas geram as Dinâmicas, ou seja, o comportamento em tempo de execução. A dinâmica mais evidente gerada pelo Beecrowd é a <span class="k">Competição Saudável</span> através dos Leaderboards (Rankings).</p>
-            <p>Como o sistema permite ranquear os alunos isoladamente por instituição — como vemos neste ranking do próprio IFS —, surge um comportamento de <span class="k">Refatoração Voluntária</span>. O aluno deixa de querer apenas o 'certo', e passa a buscar códigos mais limpos e rápidos para ultrapassar seus colegas de turma no ranking.</p>
-          </div>
-          <div class="media">
-            <div class="frame">
-              <img src="images/Rank-IFS.png" alt="Ranking do IFS no Beecrowd" onerror="this.closest('.frame').classList.add('missing')">
-              <div class="ph">Imagem não encontrada:<br>Rank-IFS.png</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+  <!-- 11: DIAGNÓSTICO DE RISCOS — POINTSIFICATION -->
+  <section class="slide" data-tag="05 · Diagnóstico de Riscos">
+    <h2 class="title">Evitando a <span class="accent">"Pointsification"</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">O sistema evita o anti-padrão da "Pointsification" superficial porque seus pontos medem competências (hard skills) verdadeiras, frequentemente usadas por recrutadores através do Beecrowd Talent Cloud. Há uma conexão real entre a pontuação e a empregabilidade.</p>
+  </section>
 
-    <!-- Slide 8: Estéticas -->
-    <section class="slide" data-file="esteticas.md">
-      <h2 class="title">6. Estéticas (A) - A Resposta Emocional</h2>
-      <div class="body">
-        <p class="lead">Por fim, a Estética define o prazer sentido pelo usuário. Neste sistema, identificamos três estéticas principais:</p>
-        <div class="three">
-          <div>
-            <h3>Desafio</h3>
-            <p>A dopamina e a sensação de alívio ao transformar um erro frustrante em um card verde de 'Accepted'.</p>
-          </div>
-          <div>
-            <h3>Expressão</h3>
-            <p>O perfil gamificado do aluno se torna um portfólio público, onde ele ostenta suas habilidades de lógica.</p>
-          </div>
-          <div>
-            <h3>Comunidade</h3>
-            <p>A complexidade das questões naturalmente incentiva a criação de fóruns e discussões onde os alunos compartilham conhecimento e ajudam uns aos outros.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+  <!-- 12: RISCO DO RANQUEAMENTO -->
+  <section class="slide" data-tag="05 · Diagnóstico de Riscos">
+    <h2 class="title">Perigo da <span class="accent">Comparação Injusta</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">O principal risco diagnosticado é o ranqueamento institucional mal calibrado. Expor alunos iniciantes nas últimas posições de sua própria faculdade pode causar desmotivação crônica. Como correção, propomos visualizar apenas posições relativas (quem está logo acima ou abaixo).</p>
+  </section>
 
-    <!-- Slide 9: Prevenção de Armadilhas -->
-    <section class="slide" data-file="armadilhas.md">
-      <h2 class="title">7. Prevenção de Armadilhas (Pointsification)</h2>
-      <div class="body">
-        <div class="two">
-          <div class="big callout">
-            <p>Um dos maiores riscos em projetos assim é a 'Pointsification', que é aplicar pontos sem nenhum valor real.</p>
-          </div>
-          <div class="txt">
-            <p>Nossa proposta evita essa armadilha porque os pontos ganhos no Beecrowd não são elementos vazios; eles refletem diretamente a competência técnica em algoritmos do aluno.</p>
-            <p>A plataforma é frequentemente monitorada por empresas reais em busca de talentos. Logo, a gamificação está alinhada à motivação intrínseca de qualquer aluno de Sistemas de Informação: o desenvolvimento de 'hard skills' e a empregabilidade.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+  <!-- 13: FRAMEWORK DE DECISÃO -->
+  <section class="slide" data-tag="06 · Framework de Decisão">
+    <h2 class="title">Vale a pena <span class="accent">gamificar?</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Aplicando os critérios vistos em aula: sim, vale a pena. Primeiro, dominar lógica exige repetição e a gamificação ajuda a consolidar esse hábito. Segundo, o sistema já possui métricas de sucesso cristalinas (Accepted vs Wrong Answer) independentes da camada lúdica.</p>
+  </section>
 
-    <!-- Slide 10: Conclusão -->
-    <section class="slide" data-file="conclusao.md">
-      <h2 class="title">8. Conclusão</h2>
-      <div class="body">
-        <div class="wide">
-          <p>Concluímos que a gamificação não ensina a programar do zero e nem cria vontade de estudar onde ela não existe. No entanto, ela atua como um poderoso <span class="k">amplificador de engajamento</span>.</p>
-          <div class="callout"><p>Implementar o framework do Beecrowd no nosso dia a dia institucional substitui o modelo estático de ensino por uma rotina dinâmica de feedback constante, tornando a resolução de algoritmos um hábito diário e, eventualmente, viciante.</p></div>
-        </div>
-      </div>
-    </section>
+  <!-- 14: PROPOSTA DE REDESENHO -->
+  <section class="slide" data-tag="07 · Proposta de Redesenho">
+    <h2 class="title">O <span class="accent">"Selo de Refinamento"</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Atualmente, o sistema não recompensa o aluno que submete códigos melhores após já ter passado de fase. Propomos criar o "Selo de Refinamento", um reconhecimento visual, não pontuado, concedido a quem otimiza seu tempo de execução voluntariamente.</p>
+  </section>
 
-    <!-- Slide 11: Referências -->
-    <section class="slide" data-file="referencias.md">
-      <h2 class="title">9. Referências</h2>
-      <div class="body">
-        <ul class="refs">
-          <li>Aulas da Disciplina de Gamificação (Bloco 1 e 2) - Prof. Jean Louis, Instituto Federal de Sergipe.</li>
-          <li>HUNICKE, R.; LEBLANC, M.; ZUBEK, R. MDA: A Formal Approach to Game Design and Game Research. AAAI Workshop, 2004.</li>
-          <li>CSIKSZENTMIHALYI, M. Flow: The Psychology of Optimal Experience. Harper &amp; Row, 1990.</li>
-          <li>Beecrowd - Academic and Competitive Programming Platform (judge.beecrowd.com).</li>
-        </ul>
-      </div>
-    </section>
+  <!-- 15: CONCLUSÃO -->
+  <section class="slide" data-tag="07 · Proposta de Redesenho">
+    <h2 class="title">O Impacto da <span class="accent">Nova Mecânica</span></h2>
+    <div class="rule"></div>
+    <p class="body-text">Essa mecânica estimula a estética de Descoberta e Desafio técnico. Ela prioriza a eficiência e a qualidade do código (legibilidade e tempo), não apenas o "funcionar". Concluímos que a gamificação não faz milagres, mas atua como um poderoso amplificador da educação.</p>
+  </section>
 
-  </main>
+  <!-- 16: REFERÊNCIAS -->
+  <section class="slide" data-tag="Referências">
+    <h2 class="title">Referências <span class="accent">Bibliográficas</span></h2>
+    <div class="rule"></div>
+    <ul class="refs">
+      <li><span class="k">[1]</span><span>WERBACH, K.; HUNTER, D. <em>For the Win: How Game Thinking Can Revolutionize Your Business</em> (2012).</span></li>
+      <li><span class="k">[2]</span><span>HUNICKE, R.; LEBLANC, M.; ZUBEK, R. <em>MDA: A Formal Approach to Game Design</em> (2004).</span></li>
+      <li><span class="k">[3]</span><span>CSIKSZENTMIHALYI, M. <em>Flow: The Psychology of Optimal Experience</em> (1990).</span></li>
+      <li><span class="k">[4]</span><span>SANTOS, J. L. S. <em>Gamificação</em>. Material didático, IFS (2026).</span></li>
+      <li><span class="k">[5]</span><span>Relatório do Grupo: <em>Diagnóstico e Redesenho de Sistema Gamificado</em> (2026).</span></li>
+    </ul>
+  </section>
 
-  <footer class="statusbar no-page" id="statusbar">
-    <div class="left"><span>IFS</span><span>Gamificação</span></div>
-    <div class="page" id="page">1 / 11</div>
-  </footer>
-
-  <button class="nav prev" id="prev" aria-label="Slide anterior" title="Anterior (←)">
-    <svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"></polyline></svg>
-  </button>
-  <button class="nav next" id="next" aria-label="Próximo slide" title="Próximo (→)">
-    <svg viewBox="0 0 24 24"><polyline points="9 4 17 12 9 20"></polyline></svg>
-  </button>
+  <div class="tag" id="tag"></div>
+  <div class="page-num" id="pageNum"></div>
 
 </div>
 
@@ -525,82 +481,53 @@
   var total = slides.length;
   var current = 0;
 
-  var tabName = document.getElementById('tabName');
-  var statusbar = document.getElementById('statusbar');
-  var pageEl = document.getElementById('page');
-  var prevBtn = document.getElementById('prev');
-  var nextBtn = document.getElementById('next');
-  var ticksEl = document.getElementById('ticks');
+  var tagEl = document.getElementById('tag');
+  var pageEl = document.getElementById('pageNum');
+  var railFill = document.getElementById('railFill');
 
-  /* Escala o palco 16:9 para caber na janela, sem barras de rolagem */
   function fit() {
     var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
     stage.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
   }
 
-  /* Indicadores clicáveis */
-  var ticks = slides.map(function (_, i) {
-    var b = document.createElement('button');
-    b.className = 'tick';
-    b.setAttribute('aria-label', 'Ir para o slide ' + (i + 1));
-    b.addEventListener('click', function () { go(i); });
-    ticksEl.appendChild(b);
-    return b;
-  });
+  function render() {
+    slides.forEach(function (sl, i) {
+      sl.classList.toggle('active', i === current);
+    });
+    var isCover = current === 0;
+    tagEl.style.display = isCover ? 'none' : 'block';
+    pageEl.style.display = isCover ? 'none' : 'block';
+    if (!isCover) {
+      tagEl.innerHTML = '<b>' + slides[current].getAttribute('data-tag') + '</b>';
+      pageEl.innerHTML = '<span class="cur">' + String(current + 1).padStart(2, '0') + '</span> / ' + total;
+    }
+    railFill.style.height = ((current) / (total - 1) * 100) + '%';
+  }
 
   function go(n) {
     current = Math.max(0, Math.min(total - 1, n));
-    slides.forEach(function (s, k) {
-      s.classList.toggle('active', k === current);
-      s.classList.toggle('before', k < current);
-      s.setAttribute('aria-hidden', k === current ? 'false' : 'true');
-    });
-    ticks.forEach(function (t, k) { t.classList.toggle('on', k === current); });
-    tabName.textContent = slides[current].getAttribute('data-file');
-    pageEl.textContent = (current + 1) + ' / ' + total;
-    statusbar.classList.toggle('no-page', current === 0);
-    prevBtn.disabled = current === 0;
-    nextBtn.disabled = current === total - 1;
+    render();
     try { history.replaceState(null, '', '#' + (current + 1)); } catch (e) {}
   }
 
-  function next() { go(current + 1); }
-  function prev() { go(current - 1); }
+  function next() { if (current < total - 1) go(current + 1); }
+  function prev() { if (current > 0) go(current - 1); }
 
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
-
-  document.addEventListener('keydown', function (e) {
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'PageDown':
-      case ' ':
-        e.preventDefault(); next(); break;
-      case 'ArrowLeft':
-      case 'PageUp':
-        e.preventDefault(); prev(); break;
-      case 'Home': e.preventDefault(); go(0); break;
-      case 'End': e.preventDefault(); go(total - 1); break;
-      case 'f':
-      case 'F':
-        if (!document.fullscreenElement) {
-          if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
-        } else if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
-        break;
-    }
+  /* Clique: metade esquerda volta, metade direita avança */
+  stage.addEventListener('click', function (e) {
+    var rect = stage.getBoundingClientRect();
+    var relX = (e.clientX - rect.left) / rect.width;
+    if (relX < 0.5) { prev(); } else { next(); }
   });
 
-  /* Gesto de deslizar em telas sensíveis ao toque */
-  var startX = null;
-  document.addEventListener('touchstart', function (e) { startX = e.changedTouches[0].clientX; }, { passive: true });
-  document.addEventListener('touchend', function (e) {
-    if (startX === null) return;
-    var dx = e.changedTouches[0].clientX - startX;
-    if (Math.abs(dx) > 60) { dx < 0 ? next() : prev(); }
-    startX = null;
-  }, { passive: true });
+  /* Teclado: A / D e setas */
+  document.addEventListener('keydown', function (e) {
+    var k = e.key;
+    if (k === 'a' || k === 'A' || k === 'ArrowLeft') { e.preventDefault(); prev(); }
+    else if (k === 'd' || k === 'D' || k === 'ArrowRight') { e.preventDefault(); next(); }
+    else if (k === 'Home') { e.preventDefault(); go(0); }
+    else if (k === 'End') { e.preventDefault(); go(total - 1); }
+  });
 
   window.addEventListener('resize', fit);
   fit();
